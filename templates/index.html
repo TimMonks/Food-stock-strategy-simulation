@@ -49,14 +49,14 @@
 </head>
 <body>
     <h1>Set Parameters for Investment Strategy</h1>
-    <form method="post" onsubmit="showSpinner()"">
-        API Key: <input type="text" name="api_key" value="6669d7a6eb70f4.27564131"><br>
-        Tickers: <input type="text" name="tickers" value="NESN.SW,UL.US,MDLZ.US,CMG.US,KHC.US,GIS.US,HSY.US,SYY.US,KHC.US"><br>
-        Days After Dividend: <input type="number" name="days_after_dividend" value="0"><br>
-        Days Before Earnings: <input type="number" name="days_before_earnings" value="0"><br>
-        Start Date: <input type="date" name="start_date" value="2021-09-09"><br>
-        End Date: <input type="date" name="end_date" value="2024-09-09"><br>
-        Initial Investment: <input type="text" name="initial_investment" value="1000"><br>
+    <form method="post" onsubmit="showSpinner()">
+        API Key: <input type="text" name="api_key" value="{{ api_key }}"><br>
+        Tickers: <input type="text" name="tickers" value="{{ tickers }}"><br>
+        Days After Dividend: <input type="number" name="days_after_dividend" value="{{ days_after_dividend }}"><br>
+        Days Before Earnings: <input type="number" name="days_before_earnings" value="{{ days_before_earnings }}"><br>
+        Start Date: <input type="date" name="start_date" value="{{ start_date }}"><br>
+        End Date: <input type="date" name="end_date" value="{{ end_date }}"><br>
+        Initial Investment: <input type="text" name="initial_investment" value="{{ initial_investment }}"><br>
         <input type="submit" value="Submit">
     </form>
     <!-- Overlay and spinner -->

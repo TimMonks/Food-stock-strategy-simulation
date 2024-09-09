@@ -1,7 +1,7 @@
 # %%
 import sys
 import io
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request
 import food_stock_strategy_simulation as fss
 import pandas as pd
 from io import BytesIO
@@ -12,6 +12,19 @@ app = Flask(__name__)
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
+    plot_base64 = None
+    output = None
+
+    # Default values for the form fields
+    api_key = "6669d7a6eb70f4.27564131"
+    #tickers = "MSFT.US,AAPL.US,AMZN.US,CB.US,INTC.US,AMD.US" # note that TSLA doesn't have dividends
+    tickers = "NESN.SW,UL.US,MDLZ.US,CMG.US,KHC.US,GIS.US,HSY.US,SYY.US,KHC.US"
+    days_after_dividend = 0
+    days_before_earnings = 0
+    start_date = "2019-09-09"
+    end_date = "2024-09-09"
+    initial_investment = 1000
+
     if request.method == 'POST':
         try:
             print("Received POST request with the following data:")
@@ -31,15 +44,18 @@ def home():
             print(f"End Date: {end_date}")
             print(f"Initial Investment: {initial_investment}")
 
-            downloaded_data,market_caps = fss.download_data(api_key, tickers, start_date, end_date)
+            # Download data
+            downloaded_data, market_caps = fss.download_data(api_key, tickers, start_date, end_date)
 
-            top_stocks_by_date= fss.create_top_stocks_by_date(market_caps, start_date, end_date, 5)
-            
+            # Create top stocks by date
+            top_stocks_by_date = fss.create_top_stocks_by_date(market_caps, start_date, end_date, 5)
+
             # Redirect stdout to capture output
             old_stdout = sys.stdout
             captured_output = io.StringIO()  # Create a StringIO object
             sys.stdout = captured_output  # Redirect stdout to this StringIO object            
 
+            # Process investment strategy
             investment_results = fss.process(downloaded_data, top_stocks_by_date, days_after_dividend, days_before_earnings, initial_investment)
 
             # Get the captured output and make it ready for rendering
@@ -47,7 +63,7 @@ def home():
             captured_output.close()
             sys.stdout = old_stdout  # Reset redirect
 
-            # Assuming investment_results is populated, and start_date and end_date are defined
+            # Generate the plot
             plot = fss.create_combined_plots(investment_results, start_date, end_date)
 
             # Save the plot to a BytesIO object
@@ -57,16 +73,25 @@ def home():
             # Convert plot to base64 string
             plot_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-            return render_template('index.html', plot=plot_base64, output=output)
-        
         except Exception as e:
             print(f"Error processing POST request: {e}")
-            result = "Error processing your request."
+            output = f"Error processing your request: {e}"
 
-        return render_template('index.html', plot=result)
-    else:
-        # GET request to show the form
-        return render_template('index.html')
-    
+    # Convert tickers list back to a comma-separated string
+    tickers = ",".join(tickers)
+
+    # Render the form with current values (retains input after submission)
+    return render_template('index.html',
+                           plot=plot_base64,
+                           output=output,
+                           api_key=api_key,
+                           tickers=tickers,
+                           days_after_dividend=days_after_dividend,
+                           days_before_earnings=days_before_earnings,
+                           start_date=start_date,
+                           end_date=end_date,
+                           initial_investment=initial_investment)
+
+
 if __name__ == '__main__':
     app.run(debug=True)  # Start the server with debugging enabled
