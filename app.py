@@ -4,6 +4,9 @@ import io
 from flask import Flask, render_template, request, redirect, url_for
 import food_stock_strategy_simulation as fss
 import pandas as pd
+from io import BytesIO
+import base64
+import matplotlib.pyplot as plt
 
 app = Flask(__name__)
 
@@ -28,25 +31,33 @@ def home():
             print(f"End Date: {end_date}")
             print(f"Initial Investment: {initial_investment}")
 
-            downloaded_data = fss.download_data(api_key, tickers, start_date, end_date)
+            downloaded_data,market_caps = fss.download_data(api_key, tickers, start_date, end_date)
 
+            top_stocks_by_date= fss.create_top_stocks_by_date(market_caps, start_date, end_date, 5)
+            
             # Redirect stdout to capture output
+            old_stdout = sys.stdout
             captured_output = io.StringIO()  # Create a StringIO object
             sys.stdout = captured_output  # Redirect stdout to this StringIO object            
 
-            investment_data, percent_time_in_market = fss.process(downloaded_data, days_after_dividend, days_before_earnings, initial_investment)
+            investment_results = fss.process(downloaded_data, top_stocks_by_date, days_after_dividend, days_before_earnings, initial_investment)
 
             # Get the captured output and make it ready for rendering
             output = captured_output.getvalue()
             captured_output.close()
+            sys.stdout = old_stdout  # Reset redirect
 
-            investment_df = fss.create_df(investment_data)
-            plot = fss.create_plot(investment_df, percent_time_in_market, days_after_dividend, days_before_earnings)
-            
-            # Convert your DataFrame to HTML
-            investment_data_html = investment_df.to_html(classes='data', header="true")
-            
-            return render_template('index.html', plot=plot, investment_data_html=investment_data_html, output=output)
+            # Assuming investment_results is populated, and start_date and end_date are defined
+            plot = fss.create_combined_plots(investment_results, start_date, end_date)
+
+            # Save the plot to a BytesIO object
+            buf = BytesIO()
+            plt.savefig(buf, format="png")
+            buf.seek(0)
+            # Convert plot to base64 string
+            plot_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+            return render_template('index.html', plot=plot_base64, output=output)
         
         except Exception as e:
             print(f"Error processing POST request: {e}")

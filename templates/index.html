@@ -15,27 +15,68 @@
             padding: 8px;
             text-align: left;
         }
-    </style>
+        .spinner {
+            display: none;
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            margin: -25px 0 0 -25px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Overlay for disabling the screen */
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        </style>
 </head>
 <body>
     <h1>Set Parameters for Investment Strategy</h1>
-    <form method="post">
+    <form method="post" onsubmit="showSpinner()"">
         API Key: <input type="text" name="api_key" value="6669d7a6eb70f4.27564131"><br>
-        Tickers: <input type="text" name="tickers" value="GIS.US,KHC.US"><br>
+        Tickers: <input type="text" name="tickers" value="NESN.SW,UL.US,MDLZ.US,CMG.US,KHC.US,GIS.US,HSY.US,SYY.US,KHC.US"><br>
         Days After Dividend: <input type="number" name="days_after_dividend" value="0"><br>
         Days Before Earnings: <input type="number" name="days_before_earnings" value="0"><br>
-        Start Date: <input type="date" name="start_date" value="2020-09-09"><br>
-        End Date: <input type="date" name="end_date" value="2025-01-01"><br>
+        Start Date: <input type="date" name="start_date" value="2021-09-09"><br>
+        End Date: <input type="date" name="end_date" value="2024-09-09"><br>
         Initial Investment: <input type="text" name="initial_investment" value="1000"><br>
         <input type="submit" value="Submit">
     </form>
+    <!-- Overlay and spinner -->
+    <div class="overlay"></div>
+    <div class="spinner"></div>
+    <script>
+        function showSpinner() {
+            document.querySelector('.spinner').style.display = 'block';
+            document.querySelector('.overlay').style.display = 'block';
+        }
+    </script>
+    <script>
+        window.onload = function() {
+            document.querySelector('.spinner').style.display = 'none';
+            document.querySelector('.overlay').style.display = 'none';
+        }
+    </script>
     {% if plot %}
         <h2>Results</h2>
         <img src="data:image/png;base64,{{ plot }}" alt="Simulation Plot">
-    {% endif %}
-    {% if investment_data_html %}
-        <h2>Investment Data</h2>
-        {{ investment_data_html | safe }}
     {% endif %}
     {% if output %}
         <h2>Captured Output:</h2>
