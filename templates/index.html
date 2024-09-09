@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Investment Strategy Inputs</title>
+    <style>
+        .data {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .data, .data th, .data td {
+            border: 1px solid black;
+        }
+        .data th, .data td {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>Set Parameters for Investment Strategy</h1>
+    <form method="post">
+        API Key: <input type="text" name="api_key" value="6669d7a6eb70f4.27564131"><br>
+        Tickers: <input type="text" name="tickers" value="GIS.US,KHC.US"><br>
+        Days After Dividend: <input type="number" name="days_after_dividend" value="0"><br>
+        Days Before Earnings: <input type="number" name="days_before_earnings" value="0"><br>
+        Start Date: <input type="date" name="start_date" value="2020-09-09"><br>
+        End Date: <input type="date" name="end_date" value="2025-01-01"><br>
+        Initial Investment: <input type="text" name="initial_investment" value="1000"><br>
+        <input type="submit" value="Submit">
+    </form>
+    {% if plot %}
+        <h2>Results</h2>
+        <img src="data:image/png;base64,{{ plot }}" alt="Simulation Plot">
+    {% endif %}
+    {% if investment_data_html %}
+        <h2>Investment Data</h2>
+        {{ investment_data_html | safe }}
+    {% endif %}
+    {% if output %}
+        <h2>Captured Output:</h2>
+        <pre>{{ output }}</pre> <!-- Use <pre> to preserve whitespace -->
+    {% endif %}    
+</body>
+</html>

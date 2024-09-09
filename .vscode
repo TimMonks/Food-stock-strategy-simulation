@@ -1,0 +1,10 @@
+{
+  "python.pythonPath": "venv/bin/python",  
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": true,
+  "python.linting.pylintPath": "venv/bin/pylint",
+  "python.formatting.autopep8Path": "venv/bin/autopep8",
+  "python.testing.pytestPath": "venv/bin/pytest",
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true
+}
