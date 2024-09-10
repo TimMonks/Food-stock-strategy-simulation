@@ -10,6 +10,38 @@ matplotlib.use('Agg')  # Use a non-interactive backend like 'Agg' (for PNGs)
 
 pd.set_option('display.max_rows', 20)  
 
+def process_market_caps(downloaded_data):
+    market_caps_data = {}
+
+    # Loop through each ticker in downloaded_data
+    for ticker, data in downloaded_data.items():
+        market_cap_status = data.get('market_cap_status')  # Get the market cap status code
+
+        # Check if the response was successful (status code 200)
+        if market_cap_status == 200:
+            market_caps = data.get('market_cap')  # Access the market cap DataFrame for the ticker
+            
+            if not market_caps.empty:
+                # Ensure the DataFrame contains only the market cap with the correct format
+                market_caps = market_caps[['value']].copy()  # Use 'value' column
+                market_caps.columns = ['value']  # Ensure column is named 'value'
+                
+                # Make sure the index is date and the data is in the correct format
+                market_caps.index = pd.to_datetime(market_caps.index)
+                market_caps.sort_index(inplace=True)
+
+                # Store the properly formatted DataFrame in the dictionary
+                market_caps_data[ticker] = market_caps
+            else:
+                # Diagnostic message if no data
+                print(f"No market cap data to process for {ticker}. Empty DataFrame returned.")
+                market_caps_data[ticker] = pd.DataFrame()  # Empty DataFrame if no data
+        else:
+            # Diagnostic message if the status code indicates an error
+            print(f"Failed to fetch market cap data for {ticker}. Status code: {market_cap_status}")
+            market_caps_data[ticker] = pd.DataFrame()  # Empty DataFrame if fetch failed
+
+    return market_caps_data
 
 
 def get_top_n_stocks(market_caps_data, date_filter,n):

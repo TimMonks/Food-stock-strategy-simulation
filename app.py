@@ -20,6 +20,7 @@ def home():
     #tickers = "MSFT.US,AAPL.US,AMZN.US,CB.US,INTC.US,AMD.US" # note that TSLA doesn't have dividends
     #tickers = "NESN.SW,UL.US,MDLZ.US,CMG.US,KHC.US,GIS.US,HSY.US,SYY.US,KHC.US"
     tickers = "AAPL.US,MSFT.US,LLY.US,JPM.US,AVGO.US,UNH.US,V.US,PG.US,JNJ.US,NVDA.US,AMZN.US,GOOG.US,GOOGL.US,META.US"
+    tickers = "AAPL.US"
     days_after_dividend = 0
     days_before_earnings = 0
     start_date = "2019-09-09"
@@ -47,11 +48,11 @@ def home():
 
             # Download data
             import download_info as di
-            downloaded_data, market_caps = di.download_data(api_key, tickers, start_date, end_date)
-
+            downloaded_data = di.download_data(api_key, tickers, start_date, end_date)
 
             # Create top stocks by date
             import food_stock_strategy_simulation as fss
+            market_caps = fss.process_market_caps(downloaded_data)
             top_stocks_by_date = fss.create_top_stocks_by_date(market_caps, start_date, end_date, 5)
 
             # Redirect stdout to capture output

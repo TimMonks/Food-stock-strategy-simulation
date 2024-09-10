@@ -21,20 +21,35 @@ def plot_stock_date_ranges(downloaded_data):
     y_pos = num_tickers
     
     for ticker, data in downloaded_data.items():
-        # Extract and convert price, dividend, and earnings date ranges
-        price_range = (pd.Timestamp(data['prices'].index.min()).to_pydatetime(), 
-                       pd.Timestamp(data['prices'].index.max()).to_pydatetime())
-        
-        # Convert dividend dates to Timestamps if they aren't already
-        dividend_dates = [pd.Timestamp(d) for d in data['dividends']]
-        dividend_range = (min(dividend_dates).to_pydatetime(), max(dividend_dates).to_pydatetime()) if dividend_dates else (None, None)
-        
-        # Convert earnings dates to Timestamps if they aren't already
-        earnings_dates = [pd.Timestamp(e) for e in data['earnings_dates']]
-        earnings_range = (min(earnings_dates).to_pydatetime(), max(earnings_dates).to_pydatetime()) if earnings_dates else (None, None)
-        
-        # Plot price range
-        ax.plot(price_range, [y_pos, y_pos], color=colors['prices'], label='Prices' if y_pos == num_tickers else "")
+        # Check if prices are available before trying to plot
+        if data['prices'].empty:
+            print(f"Warning: No price data available for {ticker}")
+            price_range = (None, None)
+        else:
+            price_range = (pd.Timestamp(data['prices'].index.min()).to_pydatetime(), 
+                           pd.Timestamp(data['prices'].index.max()).to_pydatetime())
+
+        # Check if dividend data is available
+        if len(data['dividends']) == 0:
+            print(f"Warning: No dividend data available for {ticker}")
+            dividend_dates = []
+            dividend_range = (None, None)
+        else:
+            dividend_dates = [pd.Timestamp(d) for d in data['dividends']]
+            dividend_range = (min(dividend_dates).to_pydatetime(), max(dividend_dates).to_pydatetime())
+
+        # Check if earnings data is available
+        if len(data['earnings_dates']) == 0:
+            print(f"Warning: No earnings data available for {ticker}")
+            earnings_dates = []
+            earnings_range = (None, None)
+        else:
+            earnings_dates = [pd.Timestamp(e) for e in data['earnings_dates']]
+            earnings_range = (min(earnings_dates).to_pydatetime(), max(earnings_dates).to_pydatetime())
+
+        # Plot price range if valid
+        if price_range[0] is not None and price_range[1] is not None:
+            ax.plot(price_range, [y_pos, y_pos], color=colors['prices'], label='Prices' if y_pos == num_tickers else "")
 
         # Plot dividend range (if exists) and markers for dividends
         if dividend_range[0] is not None and dividend_range[1] is not None:
@@ -49,7 +64,8 @@ def plot_stock_date_ranges(downloaded_data):
             ax.scatter(earnings_dates, [y_pos - 0.4] * len(earnings_dates), color=colors['earnings'], marker=markers['earnings'], label='' if y_pos < num_tickers else 'Earnings markers')
 
         # Label each stock on the y-axis
-        ax.text(price_range[0], y_pos, ticker, va='center', ha='right', fontsize=10)
+        if price_range[0] is not None:
+            ax.text(price_range[0], y_pos, ticker, va='center', ha='right', fontsize=10)
         
         # Move to the next y position
         y_pos -= 1
