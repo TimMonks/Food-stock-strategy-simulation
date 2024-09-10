@@ -4,52 +4,12 @@
     <meta charset="UTF-8">
     <title>Investment Strategy Inputs</title>
     <style>
-        .data {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .data, .data th, .data td {
-            border: 1px solid black;
-        }
-        .data th, .data td {
-            padding: 8px;
-            text-align: left;
-        }
-        .spinner {
-            display: none;
-            border: 8px solid #f3f3f3;
-            border-top: 8px solid #3498db;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 2s linear infinite;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            margin: -25px 0 0 -25px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Overlay for disabling the screen */
-        .overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-        }
-        </style>
+        /* Your CSS here */
+    </style>
 </head>
 <body>
     <h1>Set Parameters for Investment Strategy</h1>
-    <form method="post" onsubmit="showSpinner()">
+    <form id="strategyForm" method="post" action="/process" onsubmit="return startProcessing();">
         API Key: <input type="text" name="api_key" value="{{ api_key }}"><br>
         Tickers: <input type="text" name="tickers" value="{{ tickers }}"><br>
         Days After Dividend: <input type="number" name="days_after_dividend" value="{{ days_after_dividend }}"><br>
@@ -59,36 +19,47 @@
         Initial Investment: <input type="text" name="initial_investment" value="{{ initial_investment }}"><br>
         <input type="submit" value="Submit">
     </form>
-    <!-- Overlay and spinner -->
-    <div class="overlay"></div>
-    <div class="spinner"></div>
+
+    <!-- Div for displaying output -->
+    <div id="output"></div>
+    
     <script>
-        function showSpinner() {
-            document.querySelector('.spinner').style.display = 'block';
-            document.querySelector('.overlay').style.display = 'block';
+        function startProcessing() {
+            // Clear previous output before starting a new process
+            document.getElementById('output').innerHTML = '';  // Clear previous output
+    
+            // Create a new XMLHttpRequest object to handle form submission
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/process', true);  // Ensure this matches the Flask route
+    
+            // Track the current response length to only append new content
+            let lastResponseLength = 0;
+    
+            // On progress, append the new response text to the output div
+            xhr.onprogress = function() {
+                // Get the latest chunk of the response
+                let newResponse = xhr.responseText.slice(lastResponseLength);
+                lastResponseLength = xhr.responseText.length;  // Update the response length tracker
+    
+                // Append the new content to the output div
+                document.getElementById('output').innerHTML += newResponse;
+            };
+    
+            // On load, stop any loading indicator
+            xhr.onload = function() {
+                if (xhr.status == 200) {
+                    document.getElementById('output').innerHTML += "Process completed!<br>";
+                } else {
+                    document.getElementById('output').innerHTML += "An error occurred.<br>";
+                }
+            };
+    
+            // Handle form data
+            var formData = new FormData(document.getElementById('strategyForm'));
+            xhr.send(formData);  // Send form data with POST request
+    
+            return false;  // Prevent the default form submission behavior
         }
     </script>
-    <script>
-        window.onload = function() {
-            document.querySelector('.spinner').style.display = 'none';
-            document.querySelector('.overlay').style.display = 'none';
-        }
-    </script>
-    {% if plot_available_dates_base64 %}
-        <h2>Results</h2>
-        <img src="data:image/png;base64,{{ plot_available_dates_base64 }}" alt="Available dates">
-    {% endif %}
-    {% if plot_top_stocks_base64 %}
-        <h2>Results</h2>
-        <img src="data:image/png;base64,{{ plot_top_stocks_base64 }}" alt="Top stocks">
-    {% endif %}
-    {% if plot_combined_base64 %}
-        <h2>Results</h2>
-        <img src="data:image/png;base64,{{ plot_combined_base64 }}" alt="Simulation Plot">
-    {% endif %}
-    {% if output %}
-        <h2>Captured Output:</h2>
-        <pre>{{ output }}</pre> <!-- Use <pre> to preserve whitespace -->
-    {% endif %}    
 </body>
 </html>

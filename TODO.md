@@ -1,10 +1,8 @@
-Bugs
+Improvements
 --
-Add information on trades missed due to lack of free capital 
-(note can sort of see this on free capital the chart)
+- Add information on trades missed due to lack of free capital 
+  (note can sort of see this on free capital the chart)
 - Allow the number of pools to be specified, so the user can try to optimise time in the market
-
-Basic capabilities
 - For the top n stocks, allow n to be changed
 
 Advanced capabilities
@@ -16,6 +14,7 @@ Helpful reporting
 
 Done
 --
+- The web page now renders progressively
 - Flag and rule out any invalid tickers (show the return codes)
 - Rule out any tickers with missing data
 - At top of page, put a table sumarising range of dates for each stock for dividends, earnings, prices
