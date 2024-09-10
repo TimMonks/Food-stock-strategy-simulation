@@ -74,9 +74,17 @@
             document.querySelector('.overlay').style.display = 'none';
         }
     </script>
-    {% if plot %}
+    {% if plot_available_dates_base64 %}
         <h2>Results</h2>
-        <img src="data:image/png;base64,{{ plot }}" alt="Simulation Plot">
+        <img src="data:image/png;base64,{{ plot_available_dates_base64 }}" alt="Available dates">
+    {% endif %}
+    {% if plot_top_stocks_base64 %}
+        <h2>Results</h2>
+        <img src="data:image/png;base64,{{ plot_top_stocks_base64 }}" alt="Top stocks">
+    {% endif %}
+    {% if plot_combined_base64 %}
+        <h2>Results</h2>
+        <img src="data:image/png;base64,{{ plot_combined_base64 }}" alt="Simulation Plot">
     {% endif %}
     {% if output %}
         <h2>Captured Output:</h2>
