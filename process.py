@@ -44,54 +44,6 @@ def process_market_caps(downloaded_data):
     return market_caps_data
 
 
-def get_top_n_stocks(market_caps_data, date_filter,n):
-    latest_caps = {}
-    date_filter = pd.to_datetime(date_filter)
-
-    for ticker, data in market_caps_data.items():
-        if data.empty:
-            print(f"No data available for {ticker}.")
-            continue
-
-        # Filter data to include only entries up to and including the date filter
-        filtered_data = data.loc[data.index <= date_filter]
-
-        if not filtered_data.empty:
-            latest_value = filtered_data['value'].iloc[-1]
-            latest_caps[ticker] = latest_value
-        else:
-            print(f"No data for {ticker} on or before {date_filter}")
-
-    if latest_caps:
-        top_n = sorted(latest_caps, key=latest_caps.get, reverse=True)[:n]
-        return top_n
-    else:
-        print("No stocks have data up to the specified date.")
-        return []
-
-
-def create_top_stocks_by_date(market_caps, start_date, end_date, n):
-    start = pd.to_datetime(start_date)
-    end = pd.to_datetime(end_date)
-    date_range = pd.date_range(start=start, end=end, freq='1D') # EODHD is only per 7 says max, but we need daily data later
-
-    # Prepare a DataFrame to store the data
-    columns = ['Date', 'Stock', 'Rank']
-    data = []
-
-    for date in date_range:
-        top_stocks = get_top_n_stocks(market_caps, date, 5)
-        for rank, stock in enumerate(top_stocks, start=1):
-            data.append({'Date': date, 'Stock': stock, 'Rank': rank})
-
-    # Convert list of dicts into a DataFrame
-    df = pd.DataFrame(data, columns=columns)
-
-    # Group by Date and collect stocks into a list for each date
-    top_stocks_by_date = df.groupby('Date')['Stock'].apply(list).reset_index()
-    top_stocks_by_date.set_index('Date', inplace=True)
-
-    return top_stocks_by_date
 
 
 def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_before_earnings, initial_investment_per_pool):
@@ -100,6 +52,7 @@ def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_befor
     pending_sales = {i: {} for i in range(5)}
     pool_availability = [True] * 5
     investment_results = {}
+    no_free_capital_errors = []  # List to store tickers and dates of "no free capital" errors
 
     for date, top_stocks_row in top_stocks_by_date.iterrows():
         current_top_stocks = top_stocks_row['Stock']
@@ -121,7 +74,7 @@ def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_befor
                 buy_price = pending_sales[i]['buy_price']
                 investment_gain = (sell_price / buy_price - 1) * active_investments[i][pending_sales[i]['ticker']]
                 total_return = active_investments[i][pending_sales[i]['ticker']] + investment_gain
-                print(f"Sold: {ticker}, Pool: {i}, Date: {date_str}, Gain: ${investment_gain:.2f}, Total Return: ${total_return:.2f}")
+                print(f"{date_str}: Sold: {pending_sales[i]['ticker']}, Pool: {i}, Gain: ${investment_gain:.2f}, Total Return: ${total_return:.2f}")
                 free_capital_pools[i] += total_return
                 active_investments[i].pop(pending_sales[i]['ticker'])
                 pending_sales[i] = {}
@@ -146,19 +99,23 @@ def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_befor
                     intended_sell_date = min(valid_earnings_dates) - pd.DateOffset(days=days_before_earnings)
                     if intended_sell_date in prices.index:
                         buy_price = prices.loc[intended_buy_date, 'adjusted_close']
+                        bought = False  # Track if any pool successfully buys
                         for i in range(5):
                             if free_capital_pools[i] > 0 and pool_availability[i]:
                                 amount_to_invest = free_capital_pools[i]
                                 active_investments[i][ticker] = amount_to_invest
                                 free_capital_pools[i] = 0
                                 pool_availability[i] = False
-                                print(f"Bought: {ticker}, Pool: {i}, Date: {date_str}, Investment: ${amount_to_invest:.2f}")
+                                print(f"{date_str}: Bought: {ticker}, Pool: {i}, Investment: ${amount_to_invest:.2f}")
                                 pending_sales[i] = {'ticker': ticker, 'buy_date': intended_buy_date, 'sell_date': intended_sell_date, 'buy_price': buy_price}
+                                bought = True
                                 break
-                            else:
-                                print(f"*** No free capital for {ticker} on {date_str}")
+                        if not bought:
+                            print(f"*** No free capital for {ticker} on {date_str}")
+                            no_free_capital_errors.append((ticker, date_str))  # Log the no free capital error
 
-    return investment_results
+    return investment_results, no_free_capital_errors  # Return the results and the list of no free capital errors
+
 
 
 

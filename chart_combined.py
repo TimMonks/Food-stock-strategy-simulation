@@ -33,10 +33,9 @@ def calculate_strategy_metrics(investment_results, start_date, end_date, initial
 
     return percent_time_in_market, overall_return, annualized_return
 
+import matplotlib.gridspec as gridspec
 
-
-
-def chart_combined(investment_results, start_date, end_date):
+def chart_combined(investment_results, no_free_capital_errors, start_date, end_date):
     # Convert the investment_results dictionary to a DataFrame
     df = pd.DataFrame(investment_results).T  # Transpose to get dates as rows
     
@@ -72,36 +71,70 @@ def chart_combined(investment_results, start_date, end_date):
     num_colors = len(cleaned_df.columns)
     colors = [colormap(i / num_colors) for i in range(num_colors)]
 
-    # Create subplots for each ticker and free capital, plus one for the stacked chart
-    num_columns = len(cleaned_df.columns)
-    fig, axs = plt.subplots(num_columns + 1, 1, figsize=(12, (num_columns * 2) + 6), sharex=True)  # Doubled the height of the last plot
+    # Create a gridspec layout for subplots
+    total_subplots = len(cleaned_df.columns) + 1
+    if len(no_free_capital_errors) > 0:
+        total_subplots += 1  # Extra subplot for the error chart
+
+    fig = plt.figure(figsize=(12, (total_subplots * 3) + 10))
+    gs = gridspec.GridSpec(total_subplots, 1, height_ratios=[1] * len(cleaned_df.columns) + [2, 1])
+
+    axs = []
 
     # Plot each ticker and free capital in a separate subplot
     for i, column in enumerate(cleaned_df.columns):
-        ax = axs[i]  # Get the specific subplot axis
-        
-        # Plot the single column (ticker or Free Capital)
+        ax = fig.add_subplot(gs[i, 0])
         cleaned_df[column].plot(kind='area', stacked=False, ax=ax, color=colors[i])
 
         # Formatting the plot
         ax.set_title(f'Cumulative Value Over Time ({column})', fontsize=10)
         ax.set_ylabel('Capital Value ($)', fontsize=8)
         ax.grid(True)
+        axs.append(ax)
 
-    # Plot the stacked chart in the last subplot
-    cleaned_df.plot(kind='area', stacked=True, ax=axs[-1], color=colors)
+    # Plot the stacked chart
+    ax_stacked = fig.add_subplot(gs[-2, 0], sharex=axs[0])
+    cleaned_df.plot(kind='area', stacked=True, ax=ax_stacked, color=colors)
+    ax_stacked.set_title('Cumulative Capital Over Time (Stacked)', fontsize=10)
+    ax_stacked.set_ylabel('Total Value ($)', fontsize=8)
+    ax_stacked.grid(True)
+    axs.append(ax_stacked)
 
-    # Formatting the stacked plot
-    axs[-1].set_title('Cumulative Capital Over Time (Stacked)', fontsize=10)
-    axs[-1].set_xlabel('Date', fontsize=10)
-    axs[-1].set_ylabel('Total Value ($)', fontsize=8)
-    axs[-1].grid(True)
+    # Explicitly remove the legend from the stacked plot
+    ax_stacked.get_legend().remove()
 
-    # Explicitly remove the legend
-    axs[-1].get_legend().remove()
+    # Rotate date labels for better visibility on the stacked chart
+    plt.setp(ax_stacked.xaxis.get_majorticklabels(), rotation=45)
 
-    # Rotate date labels for better visibility on the last subplot
-    plt.setp(axs[-1].xaxis.get_majorticklabels(), rotation=45) 
+    # Plot the "No Free Capital Errors" chart only if there are errors
+    if len(no_free_capital_errors) > 0:
+        ax_errors = fig.add_subplot(gs[-1, 0], sharex=axs[0])
+
+        df_errors = pd.DataFrame(no_free_capital_errors, columns=['Ticker', 'Date'])
+        df_errors['Date'] = pd.to_datetime(df_errors['Date'])
+
+        # Group by both Ticker and Date to count the number of errors per ticker on each date
+        error_counts_by_ticker_date = df_errors.groupby(['Date', 'Ticker']).size().unstack(fill_value=0)
+
+        # Ensure we reindex to match the full date range used by the other plots
+        error_counts_by_ticker_date = error_counts_by_ticker_date.reindex(cleaned_df.index, fill_value=0)
+
+        # Plot the error counts over time in the last subplot for each ticker
+        tickers = error_counts_by_ticker_date.columns
+        for idx, ticker in enumerate(tickers):
+            ax_errors.fill_between(error_counts_by_ticker_date.index,
+                                0, error_counts_by_ticker_date[ticker],
+                                label=ticker, step='mid', color=colormap(idx / len(tickers)))
+
+        ax_errors.set_title("Free Capital Errors Over Time (by Ticker)", fontsize=10)
+        ax_errors.set_ylabel("Error Count", fontsize=8)
+        ax_errors.grid(True)
+        ax_errors.set_ylim(bottom=0)  # Ensure y-axis starts at 0
+        ax_errors.set_xlabel('Date', fontsize=10)
+        ax_errors.legend(loc="upper left")  # Optional: add a legend if desired
+
+        # Rotate date labels for better visibility
+        plt.setp(ax_errors.xaxis.get_majorticklabels(), rotation=45)
 
     # Add metrics information at the top of the plot
     metrics_text = (
@@ -109,13 +142,14 @@ def chart_combined(investment_results, start_date, end_date):
         f"Overall Return: {overall_return:.2f}%\n"
         f"Annualized Return: {annualized_return:.2f}%"
     )
-    fig.text(0.5, 0.96, metrics_text, ha='center', fontsize=12)  # Moved to the top
+    fig.text(0.5, 0.96, metrics_text, ha='center', fontsize=12)
 
-    plt.tight_layout(rect=[0, 0.1, 1, 0.95])  # Adjust layout to make room for the text and rotated labels
-    
+    plt.tight_layout(rect=[0, 0.1, 1, 0.95])
+
     # Save the plot to a BytesIO object
     buf = BytesIO()
     plt.savefig(buf, format="png")
     buf.seek(0)
+
     # Convert plot to base64 string
     return base64.b64encode(buf.getvalue()).decode("utf-8")

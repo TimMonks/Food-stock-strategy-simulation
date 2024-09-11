@@ -6,13 +6,20 @@ import matplotlib.pyplot as plt
 import sys
 import io
 
+import download_info as di
+import top_stocks as ts
+import process as p
+import chart_combined as cc
+import chart_available_dates as cad
+
 app = Flask(__name__)
 
 @app.route('/', methods=['GET'])
 def home():
     # Default values for the form fields
     api_key = "6669d7a6eb70f4.27564131"
-    tickers = "AAPL.US,MSFT.US"
+    tickers = "AAPL.US,MSFT.US,NVDA.US,AMZN.US,META.US,GOOGL.US,GOOG.US,LLY.US,JPM.US,BRK-B.US,V.US,PG.US,UNH.US,AVGO.US,JNJ.US"
+    tickers = "AAPL.US,MSFT.US,NVDA.US,JPM.US,V.US,UNH.US,JNJ.US"
     days_after_dividend = 0
     days_before_earnings = 0
     start_date = "2019-09-09"
@@ -50,26 +57,24 @@ def stream_process(api_key, tickers, days_after_dividend, days_before_earnings, 
 
     # Download data
     yield "Downloading data...<br>\n"
-    import download_info as di
     tickers_list = tickers.split(',')
     downloaded_data = di.download_data(api_key, tickers_list, start_date, end_date)
     yield "Data downloaded.<br>\n"
 
     # First chart (stock date ranges)
-    import chart_available_dates as cad
     plot_available_dates_base64 = cad.plot_stock_date_ranges(downloaded_data)
+    yield f" "  # Flush the stream
     yield f" "  # Flush the stream
     yield f'<img src="data:image/png;base64,{plot_available_dates_base64}"><br>\n'
     
     # Process market cap data
     yield "Processing market cap data...<br>\n"
-    market_caps = fss.process_market_caps(downloaded_data)
-    top_stocks_by_date = fss.create_top_stocks_by_date(market_caps, start_date, end_date, 5)
+    market_caps = p.process_market_caps(downloaded_data)
+    top_stocks_by_date = ts.create_top_stocks_by_date(market_caps, start_date, end_date, 5)
     yield "Market cap processing complete.<br>\n"
 
     # Second chart (top stocks over time)
-    import chart_top_stocks as cts
-    plot_top_stocks_base64 = cts.chart_top_stocks(top_stocks_by_date)
+    plot_top_stocks_base64 = ts.chart_top_stocks(top_stocks_by_date)
     yield f" "  # Flush the stream
     yield f'<img src="data:image/png;base64,{plot_top_stocks_base64}"><br>\n'
 
@@ -80,7 +85,7 @@ def stream_process(api_key, tickers, days_after_dividend, days_before_earnings, 
 
     # Process investment strategy
     yield "Processing investment strategy...<br>\n"
-    investment_results = fss.process(downloaded_data, top_stocks_by_date, days_after_dividend, days_before_earnings, initial_investment)
+    investment_results, free_capital_errors = p.process(downloaded_data, top_stocks_by_date, days_after_dividend, days_before_earnings, initial_investment)
     yield "Investment strategy processed.<br>\n"
 
     # Get the captured output and make it ready for rendering
@@ -89,9 +94,8 @@ def stream_process(api_key, tickers, days_after_dividend, days_before_earnings, 
     sys.stdout = old_stdout  # Reset redirect
 
     # Third chart (combined investment results)
-    import chart_combined as cc
     try:
-        plot_combined_base64 = cc.chart_combined(investment_results, start_date, end_date)
+        plot_combined_base64 = cc.chart_combined(investment_results, free_capital_errors, start_date, end_date)
         yield f" "  # Flush the stream
         yield f'<img src="data:image/png;base64,{plot_combined_base64}"><br>\n'
     except Exception as e:
