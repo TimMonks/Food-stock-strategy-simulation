@@ -10,6 +10,36 @@ matplotlib.use('Agg')  # Use a non-interactive backend like 'Agg' (for PNGs)
 
 pd.set_option('display.max_rows', 20)  
 
+def calculate_strategy_metrics(investment_results, start_date, end_date, total_investment):
+    total_days = (pd.Timestamp(end_date) - pd.Timestamp(start_date)).days
+    final_value = 0
+    invested_capital_days = 0
+    uninvested_capital_days = 0
+    running_invested = 0  # Track the amount of invested capital for each day
+
+    # Loop through the investment data to calculate time in market and final value
+    for date, data in investment_results.items():
+        # Calculate the total invested capital on this date
+        invested_on_date = sum([value for key, value in data.items() if "Free Capital" not in key])
+        free_capital_on_date = sum([value for key, value in data.items() if "Free Capital" in key])
+        
+        # Track the total invested and uninvested capital for the day
+        running_invested += invested_on_date
+        invested_capital_days += invested_on_date
+        uninvested_capital_days += free_capital_on_date
+
+        final_value = invested_on_date + free_capital_on_date
+
+
+    metrics = {}
+    metrics['total_capital_tracked'] = invested_capital_days + uninvested_capital_days
+    metrics['percent_time_in_market'] = (invested_capital_days / metrics['total_capital_tracked']) * 100 if metrics['total_capital_tracked'] > 0 else 0
+    metrics['overall_return'] = ((final_value - total_investment) / total_investment) * 100 if total_investment > 0 else 0
+    metrics['annualized_return'] = ((final_value / total_investment) ** (365 / total_days) - 1) * 100 if total_days > 0 else 0
+
+    return metrics
+
+
 def process_market_caps(downloaded_data):
     market_caps_data = {}
 
@@ -44,30 +74,56 @@ def process_market_caps(downloaded_data):
     return market_caps_data
 
 
+def remove_tickers_without_dividends(downloaded_data):
+    """
+    Removes tickers from the downloaded_data dictionary that do not have any dividend data.
+    
+    Parameters:
+    - downloaded_data (dict): The dictionary containing the downloaded stock data.
+    
+    Returns:
+    - dict: The updated downloaded_data dictionary with tickers without dividends removed.
+    """
+    tickers_to_remove = []
+
+    # Check each ticker for dividend data
+    for ticker, data in downloaded_data.items():
+        dividends = data.get('dividends', [])
+        if not dividends:  # If the dividend list is empty or None
+            print(f"Removing {ticker} because it has no dividend data.")
+            tickers_to_remove.append(ticker)
+
+    # Remove tickers without dividends from the downloaded_data dictionary
+    for ticker in tickers_to_remove:
+        del downloaded_data[ticker]
+
+    return downloaded_data
 
 
-def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_before_earnings, initial_investment_per_pool):
-    free_capital_pools = [initial_investment_per_pool] * 5
-    active_investments = {i: {} for i in range(5)}
-    pending_sales = {i: {} for i in range(5)}
-    pool_availability = [True] * 5
+def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_before_earnings, initial_investment_per_pool, num_pools=7):
+    # Initialize pools and their states based on the number of pools
+    free_capital_pools = [initial_investment_per_pool] * num_pools
+    active_investments = {i: {} for i in range(num_pools)}
+    pending_sales = {i: {} for i in range(num_pools)}
+    pool_availability = [True] * num_pools
     investment_results = {}
-    no_free_capital_errors = []  # List to store tickers and dates of "no free capital" errors
+    free_capital_errors = []  # List to store tickers and dates of "no free capital" errors
 
+    # Iterate over each date and the top stocks on that date
     for date, top_stocks_row in top_stocks_by_date.iterrows():
-        current_top_stocks = top_stocks_row['Stock']
+        current_top_stocks = top_stocks_row['Stock']  # List of top stocks (tickers) for the current date
         date_str = date.strftime('%Y-%m-%d')
         investment_results[date_str] = {}
 
-        # Print diagnostics for the start of each day
-        for i in range(5):
+        # Print diagnostics for the start of each day (per pool)
+        for i in range(num_pools):
             investment_results[date_str][f"Pool {i} Free Capital"] = free_capital_pools[i]
             if active_investments[i]:
                 for ticker, investment_value in active_investments[i].items():
                     investment_results[date_str][f"Pool {i} - {ticker}"] = investment_value
 
-        # Process sales for the day
-        for i in range(5):
+        # Process sales for the day (if any pending sales are due)
+        for i in range(num_pools):
             if pending_sales[i] and pending_sales[i]['sell_date'] == date:
                 prices = downloaded_data[pending_sales[i]['ticker']]['prices']
                 sell_price = prices.loc[date, 'adjusted_close']
@@ -80,10 +136,10 @@ def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_befor
                 pending_sales[i] = {}
                 pool_availability[i] = True
 
-        # Process possible buys for the day
+        # Process possible buys for the day (based on the current top stocks)
         for ticker, data in downloaded_data.items():
             if ticker not in current_top_stocks:
-                continue
+                continue  # Skip stocks that are not in the top list for the current date
 
             prices = data['prices']
             dividends = data['dividends']
@@ -100,7 +156,7 @@ def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_befor
                     if intended_sell_date in prices.index:
                         buy_price = prices.loc[intended_buy_date, 'adjusted_close']
                         bought = False  # Track if any pool successfully buys
-                        for i in range(5):
+                        for i in range(num_pools):
                             if free_capital_pools[i] > 0 and pool_availability[i]:
                                 amount_to_invest = free_capital_pools[i]
                                 active_investments[i][ticker] = amount_to_invest
@@ -112,10 +168,114 @@ def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_befor
                                 break
                         if not bought:
                             print(f"*** No free capital for {ticker} on {date_str}")
-                            no_free_capital_errors.append((ticker, date_str))  # Log the no free capital error
+                            free_capital_errors.append((ticker, date_str))  # Log the no free capital error
 
-    return investment_results, no_free_capital_errors  # Return the results and the list of no free capital errors
-
-
+    return investment_results, free_capital_errors  # Return the results and the list of no free capital errors
 
 
+
+def calculate_returns(downloaded_data, start_date, end_date, top_stocks_by_date, num_stocks):
+    """
+    Calculate returns based on investing in the top 'n' stocks from the first valid date.
+    Args:
+        downloaded_data (dict): Dictionary containing the stock data.
+        start_date (str): The start date of the period.
+        end_date (str): The end date of the period.
+        top_stocks_by_date (pd.DataFrame): DataFrame containing top stocks by date.
+        n (int): Number of top stocks to consider for return calculation.
+    Returns:
+        tuple: (returns_data, avg_percent_return, avg_annual_return, first_valid_date, last_valid_date)
+    """
+    start_date_ts = pd.to_datetime(start_date)
+    end_date_ts = pd.to_datetime(end_date)
+
+    first_valid_date = None
+    last_valid_date = None
+
+    # Helper function to check if all stocks have valid price data for a given date
+    def has_valid_data_on_date(ticker, date):
+        data = downloaded_data.get(ticker)
+        if data is None or data['prices'].empty:
+            return False
+        prices = data['prices']
+        return pd.Timestamp(date) in pd.to_datetime(prices.index)
+
+    # Loop through the dates to find the first valid date where all 'n' stocks have data
+    for date in top_stocks_by_date.index:
+        top_stocks = top_stocks_by_date.loc[date, 'Stock'][:num_stocks]  # Select the top 'n' stocks
+        
+        # Ensure there are exactly 'n' tickers on this date
+        if len(top_stocks) != num_stocks:
+            continue
+
+        all_stocks_have_data = all(has_valid_data_on_date(ticker, date) for ticker in top_stocks)
+
+        # Set the first valid date if all selected stocks have data
+        if all_stocks_have_data:
+            first_valid_date = date
+            break
+
+    # If no valid date is found, return with no data
+    if not first_valid_date:
+        print("No valid date where all top 'n' stocks have data.")
+        return [], None, None, None, None
+
+    # Now calculate the last valid date where all selected stocks have data
+    for date in reversed(top_stocks_by_date.index):
+        top_stocks = top_stocks_by_date.loc[date, 'Stock'][:num_stocks]
+
+        # Ensure there are exactly 'n' tickers on this date
+        if len(top_stocks) != num_stocks:
+            continue
+
+        all_stocks_have_data = all(has_valid_data_on_date(ticker, date) for ticker in top_stocks)
+
+        if all_stocks_have_data:
+            last_valid_date = date
+            break
+
+    returns_data = []
+    total_percent_return = 0
+    total_annual_return = 0
+    valid_tickers_count = 0
+    total_days = (last_valid_date - first_valid_date).days  # Recalculate total days based on actual valid dates
+
+    for ticker in top_stocks_by_date.loc[first_valid_date, 'Stock'][:num_stocks]:
+        data = downloaded_data.get(ticker)
+        prices = data['prices'] if data else pd.DataFrame()
+
+        if not prices.empty and first_valid_date in prices.index and last_valid_date in prices.index:
+            start_price = prices.loc[first_valid_date, 'adjusted_close']
+            end_price = prices.loc[last_valid_date, 'adjusted_close']
+
+            percent_return = ((end_price - start_price) / start_price) * 100
+
+            # Calculate effective annual return (EAR)
+            if total_days > 0:
+                annual_return = ((end_price / start_price) ** (365 / total_days) - 1) * 100
+            else:
+                annual_return = None
+
+            # Track total returns for average calculation
+            total_percent_return += percent_return
+            if annual_return is not None:
+                total_annual_return += annual_return
+            valid_tickers_count += 1
+
+            returns_data.append({
+                'ticker': ticker,
+                'start_price': start_price,
+                'end_price': end_price,
+                'percent_return': percent_return,
+                'annual_return': annual_return
+            })
+
+    # Calculate the average returns assuming equal investment in all top 'n' stocks
+    if valid_tickers_count > 0:
+        avg_percent_return = total_percent_return / valid_tickers_count
+        avg_annual_return = total_annual_return / valid_tickers_count if total_days > 0 else None
+    else:
+        avg_percent_return = None
+        avg_annual_return = None
+
+    return returns_data, avg_percent_return, avg_annual_return, first_valid_date, last_valid_date

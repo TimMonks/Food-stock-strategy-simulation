@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 
 
-def get_top_n_stocks(market_caps_data, date_filter,n):
+def get_top_n_stocks(market_caps_data, date_filter, num_stocks):
     latest_caps = {}
     date_filter = pd.to_datetime(date_filter)
 
@@ -24,14 +24,14 @@ def get_top_n_stocks(market_caps_data, date_filter,n):
             print(f"No data for {ticker} on or before {date_filter}")
 
     if latest_caps:
-        top_n = sorted(latest_caps, key=latest_caps.get, reverse=True)[:n]
+        top_n = sorted(latest_caps, key=latest_caps.get, reverse=True)[:num_stocks]
         return top_n
     else:
         print("No stocks have data up to the specified date.")
         return []
 
 
-def create_top_stocks_by_date(market_caps, start_date, end_date, n):
+def create_top_stocks_by_date(market_caps, start_date, end_date, num_stocks):
     start = pd.to_datetime(start_date)
     end = pd.to_datetime(end_date)
     date_range = pd.date_range(start=start, end=end, freq='1D') # EODHD is only per 7 says max, but we need daily data later
@@ -41,7 +41,7 @@ def create_top_stocks_by_date(market_caps, start_date, end_date, n):
     data = []
 
     for date in date_range:
-        top_stocks = get_top_n_stocks(market_caps, date, 5)
+        top_stocks = get_top_n_stocks(market_caps, date, num_stocks)
         for rank, stock in enumerate(top_stocks, start=1):
             data.append({'Date': date, 'Stock': stock, 'Rank': rank})
 
