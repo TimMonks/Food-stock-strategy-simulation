@@ -156,9 +156,9 @@ def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_befor
                                 pending_sales[i] = {'ticker': ticker, 'buy_date': intended_buy_date, 'sell_date': intended_sell_date, 'buy_price': buy_price}
                                 break
                             else:
-                                print(f"No free capital for {ticker} on {date_str}")
+                                print(f"*** No free capital for {ticker} on {date_str}")
 
     return investment_results
 
-# %%
+
 

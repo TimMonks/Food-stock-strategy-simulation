@@ -82,7 +82,6 @@ def download_and_cache_json(url, cache_dir=CACHE_DIR):
         return None, response.status_code
 
 
-
 # Helper function to download price data from the API with caching
 def fetch_price_data(ticker, start_date, end_date, api_key):
     url = f"https://eodhd.com/api/eod/{ticker}?from={start_date}&to={end_date}&api_token={api_key}&fmt=json"
@@ -96,27 +95,6 @@ def fetch_price_data(ticker, start_date, end_date, api_key):
     else:
         print(f"Error fetching prices for {ticker}: {status_code}")
         return pd.DataFrame(), status_code  # Return empty DataFrame and status code
-
-# Helper function to download earnings data from the API
-def old_fetch_earnings_data(ticker, start_date, end_date, api_key):
-    url = f"https://eodhd.com/api/calendar/earnings?api_token={api_key}&from={start_date}&to={end_date}&symbols={ticker}"
-    response = requests.get(url)
-    print(response, " ", url)
-    
-    if response.status_code == 200 and response.text.strip() != "":
-        try:
-            earnings = pd.read_csv(io.StringIO(response.text))
-            earnings_dates = earnings['Report_Date'].dropna().unique()
-            earnings_dates_str = ', '.join(earnings_dates)
-            print(f"Earnings Dates for {ticker}: {earnings_dates_str}")
-            print(earnings_dates)
-            return earnings_dates, response.status_code  # Return data and status code
-        except Exception as e:
-            print(f"Error processing earnings data for {ticker}: {e}")
-            return [], response.status_code  # Return empty list and status code
-    else:
-        print(f"Error fetching earnings for {ticker}: {response.status_code}")
-        return [], response.status_code  # Return empty list and status code
 
     
 # Helper function to download earnings data from the API with caching

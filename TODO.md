@@ -14,6 +14,7 @@ Helpful reporting
 
 Done
 --
+- Cache downloaded data
 - The web page now renders progressively
 - Flag and rule out any invalid tickers (show the return codes)
 - Rule out any tickers with missing data

@@ -1,8 +1,9 @@
 from flask import Flask, render_template, request, Response, stream_with_context
-import food_stock_strategy_simulation as fss
+import process as fss
 import pandas as pd
 import base64
 import matplotlib.pyplot as plt
+import sys
 import io
 
 app = Flask(__name__)
@@ -57,6 +58,7 @@ def stream_process(api_key, tickers, days_after_dividend, days_before_earnings, 
     # First chart (stock date ranges)
     import chart_available_dates as cad
     plot_available_dates_base64 = cad.plot_stock_date_ranges(downloaded_data)
+    yield f" "  # Flush the stream
     yield f'<img src="data:image/png;base64,{plot_available_dates_base64}"><br>\n'
     
     # Process market cap data
@@ -68,13 +70,24 @@ def stream_process(api_key, tickers, days_after_dividend, days_before_earnings, 
     # Second chart (top stocks over time)
     import chart_top_stocks as cts
     plot_top_stocks_base64 = cts.chart_top_stocks(top_stocks_by_date)
+    yield f" "  # Flush the stream
     yield f'<img src="data:image/png;base64,{plot_top_stocks_base64}"><br>\n'
+
+    # Redirect stdout to capture output
+    old_stdout = sys.stdout
+    captured_output = io.StringIO()  # Create a StringIO object
+    sys.stdout = captured_output  # Redirect stdout to this StringIO object            
 
     # Process investment strategy
     yield "Processing investment strategy...<br>\n"
     investment_results = fss.process(downloaded_data, top_stocks_by_date, days_after_dividend, days_before_earnings, initial_investment)
     yield "Investment strategy processed.<br>\n"
-    
+
+    # Get the captured output and make it ready for rendering
+    output = captured_output.getvalue()
+    captured_output.close()
+    sys.stdout = old_stdout  # Reset redirect
+
     # Third chart (combined investment results)
     import chart_combined as cc
     try:
@@ -84,7 +97,9 @@ def stream_process(api_key, tickers, days_after_dividend, days_before_earnings, 
     except Exception as e:
         yield f"Error generating third chart: {str(e)}<br>\n"
 
-    yield "Process complete!<br>\n"
+    yield f"<pre>{output}</pre>"
+
+    yield "Simulation complete!<br>\n"
 
 
 if __name__ == '__main__':
