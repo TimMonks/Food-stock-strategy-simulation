@@ -99,28 +99,37 @@ def remove_tickers_without_dividends(downloaded_data):
 
     return downloaded_data
 
-
-def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_before_earnings, initial_investment_per_pool, num_pools=7):
+def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_before_earnings, initial_investment, num_pools):
     # Initialize pools and their states based on the number of pools
-    free_capital_pools = [initial_investment_per_pool] * num_pools
+    free_capital_pools = [initial_investment/num_pools] * num_pools
     active_investments = {i: {} for i in range(num_pools)}
     pending_sales = {i: {} for i in range(num_pools)}
     pool_availability = [True] * num_pools
     investment_results = {}
     free_capital_errors = []  # List to store tickers and dates of "no free capital" errors
 
-    # Iterate over each date and the top stocks on that date
-    for date, top_stocks_row in top_stocks_by_date.iterrows():
-        current_top_stocks = top_stocks_row['Stock']  # List of top stocks (tickers) for the current date
+    # Generate a full date range (including non-trading days)
+    full_date_range = pd.date_range(start=top_stocks_by_date.index.min(), end=top_stocks_by_date.index.max(), freq='D')
+
+    # Forward-fill price data for each stock across all dates
+    for ticker, data in downloaded_data.items():
+        data['prices'] = data['prices'].reindex(full_date_range).ffill()
+
+    # Iterate over each date in the full range (including non-trading days)
+    for date in full_date_range:
         date_str = date.strftime('%Y-%m-%d')
         investment_results[date_str] = {}
 
         # Print diagnostics for the start of each day (per pool)
         for i in range(num_pools):
             investment_results[date_str][f"Pool {i} Free Capital"] = free_capital_pools[i]
+
             if active_investments[i]:
                 for ticker, investment_value in active_investments[i].items():
-                    investment_results[date_str][f"Pool {i} - {ticker}"] = investment_value
+                    # Use the last valid price (forward-filled) for non-trading days
+                    current_price = downloaded_data[ticker]['prices'].loc[date, 'adjusted_close']
+                    current_investment_value = (investment_value / pending_sales[i]['buy_price']) * current_price
+                    investment_results[date_str][f"Pool {i} - {ticker}"] = current_investment_value
 
         # Process sales for the day (if any pending sales are due)
         for i in range(num_pools):
@@ -136,42 +145,44 @@ def process(downloaded_data, top_stocks_by_date, days_after_dividend, days_befor
                 pending_sales[i] = {}
                 pool_availability[i] = True
 
-        # Process possible buys for the day (based on the current top stocks)
-        for ticker, data in downloaded_data.items():
-            if ticker not in current_top_stocks:
-                continue  # Skip stocks that are not in the top list for the current date
+        # Check if it's a valid trading day and process possible buys
+        if date in top_stocks_by_date.index:
+            current_top_stocks = top_stocks_by_date.loc[date, 'Stock']
 
-            prices = data['prices']
-            dividends = data['dividends']
-            earnings_dates = [pd.Timestamp(d) for d in data['earnings_dates']]
+            for ticker, data in downloaded_data.items():
+                if ticker not in current_top_stocks:
+                    continue  # Skip stocks that are not in the top list for the current date
 
-            for ex_dividend_date in dividends:
-                ex_dividend_date = pd.Timestamp(ex_dividend_date)
-                intended_buy_date = ex_dividend_date + pd.DateOffset(days=days_after_dividend)
-                if intended_buy_date == date:
-                    valid_earnings_dates = [ed for ed in earnings_dates if ed > intended_buy_date]
-                    if not valid_earnings_dates:
-                        continue
-                    intended_sell_date = min(valid_earnings_dates) - pd.DateOffset(days=days_before_earnings)
-                    if intended_sell_date in prices.index:
-                        buy_price = prices.loc[intended_buy_date, 'adjusted_close']
-                        bought = False  # Track if any pool successfully buys
-                        for i in range(num_pools):
-                            if free_capital_pools[i] > 0 and pool_availability[i]:
-                                amount_to_invest = free_capital_pools[i]
-                                active_investments[i][ticker] = amount_to_invest
-                                free_capital_pools[i] = 0
-                                pool_availability[i] = False
-                                print(f"{date_str}: Bought: {ticker}, Pool: {i}, Investment: ${amount_to_invest:.2f}")
-                                pending_sales[i] = {'ticker': ticker, 'buy_date': intended_buy_date, 'sell_date': intended_sell_date, 'buy_price': buy_price}
-                                bought = True
-                                break
-                        if not bought:
-                            print(f"*** No free capital for {ticker} on {date_str}")
-                            free_capital_errors.append((ticker, date_str))  # Log the no free capital error
+                prices = data['prices']
+                dividends = data['dividends']
+                earnings_dates = [pd.Timestamp(d) for d in data['earnings_dates']]
+
+                for ex_dividend_date in dividends:
+                    ex_dividend_date = pd.Timestamp(ex_dividend_date)
+                    intended_buy_date = ex_dividend_date + pd.DateOffset(days=days_after_dividend)
+                    if intended_buy_date == date:
+                        valid_earnings_dates = [ed for ed in earnings_dates if ed > intended_buy_date]
+                        if not valid_earnings_dates:
+                            continue
+                        intended_sell_date = min(valid_earnings_dates) - pd.DateOffset(days=days_before_earnings)
+                        if intended_sell_date in prices.index:
+                            buy_price = prices.loc[intended_buy_date, 'adjusted_close']
+                            bought = False  # Track if any pool successfully buys
+                            for i in range(num_pools):
+                                if free_capital_pools[i] > 0 and pool_availability[i]:
+                                    amount_to_invest = free_capital_pools[i]
+                                    active_investments[i][ticker] = amount_to_invest
+                                    free_capital_pools[i] = 0
+                                    pool_availability[i] = False
+                                    print(f"{date_str}: Bought: {ticker}, Pool: {i}, Investment: ${amount_to_invest:.2f}")
+                                    pending_sales[i] = {'ticker': ticker, 'buy_date': intended_buy_date, 'sell_date': intended_sell_date, 'buy_price': buy_price}
+                                    bought = True
+                                    break
+                            if not bought:
+                                print(f"*** No free capital for {ticker} on {date_str}")
+                                free_capital_errors.append((ticker, date_str))  # Log the no free capital error
 
     return investment_results, free_capital_errors  # Return the results and the list of no free capital errors
-
 
 
 def calculate_returns(downloaded_data, start_date, end_date, top_stocks_by_date, num_stocks):

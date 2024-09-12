@@ -24,8 +24,8 @@ def home():
     start_date = "2019-09-09"
     end_date = "2024-09-09"
     initial_investment = 1000
-    num_pools = 5
-    num_stocks = 5
+    num_pools = 10
+    num_stocks = 10
 
     return render_template('index.html',
                            api_key=api_key,
